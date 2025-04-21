@@ -46,7 +46,8 @@ class ChecklistViewSet(viewsets.ModelViewSet):
             # Create a new checklist
             new_checklist = Checklist.objects.create(
                 title=request.data.get('title', f"Copy of {original.title}"),
-                description=original.description
+                description=original.description,
+                owner=request.user if request.user.is_authenticated else None
             )
             # Clone categories and items
             for cat in original.categories.all():
