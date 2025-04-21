@@ -1,5 +1,6 @@
 from django.db import models
-
+from django.contrib.auth.models import User
+import uuid
 
 class Checklist(models.Model):
     """
@@ -8,6 +9,7 @@ class Checklist(models.Model):
     """
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='checklists')
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return self.title
@@ -42,3 +44,15 @@ class CategoryFile(models.Model):
 class ItemFile(models.Model):
     item = models.ForeignKey(Item, related_name="files", on_delete=models.CASCADE)
     file = models.FileField(upload_to="item_files/")
+
+
+class ShareLink(models.Model):
+    """
+    ShareLink model representing a link to share a checklist.
+    Contains the checklist, a unique token, and creation date
+    """
+    token     = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    checklist = models.ForeignKey(Checklist, related_name='share_links', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.checklist.title} → {self.token}"

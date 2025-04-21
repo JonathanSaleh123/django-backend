@@ -2,10 +2,10 @@
 from django.urls import path, include
 from rest_framework import routers
 from rest_framework_nested import routers as nested_routers
-
+from rest_framework.routers      import SimpleRouter
 from .views import (
     ChecklistViewSet, CategoryViewSet, ItemViewSet,
-    CategoryFileViewSet, ItemFileViewSet
+    CategoryFileViewSet, ItemFileViewSet, SharedChecklistViewSet, SharedCategoryFileViewSet, SharedItemFileViewSet
 )
 
 # 1) top‑level checklist router
@@ -28,10 +28,62 @@ category_file_router.register(r'files', CategoryFileViewSet, basename='category-
 item_file_router = nested_routers.NestedSimpleRouter(category_router, r'items', lookup='item')
 item_file_router.register(r'files', ItemFileViewSet, basename='item-files')
 
+
+
+# 1) top‑level “share” router
+share_router = SimpleRouter()
+share_router.register(r'share', SharedChecklistViewSet, basename='shared-checklist')
+
+# 2) /api/share/{token}/categories/
+share_cat_router = nested_routers.NestedSimpleRouter(
+    share_router, r'share', lookup='token'
+)
+
+share_cat_router.register(
+    r'categories',
+    CategoryViewSet,                   # or a read‑only variant listing them
+    basename='shared-categories'
+)
+
+# 3) /api/share/{token}/categories/{category_pk}/files/
+share_cat_file_router = nested_routers.NestedSimpleRouter(
+    share_cat_router, r'categories', lookup='category'
+)
+share_cat_file_router.register(
+    r'files',
+    SharedCategoryFileViewSet,
+    basename='shared-category-files'
+)
+
+# 4) /api/share/{token}/categories/{category_pk}/items/{item_pk}/files/
+share_item_router = nested_routers.NestedSimpleRouter(
+    share_cat_router, r'categories', lookup='category'
+)
+share_item_router.register(
+    r'items',
+    ItemViewSet,                       # or a read‑only one
+    basename='shared-items'
+)
+
+share_item_file_router = nested_routers.NestedSimpleRouter(
+    share_item_router, r'items', lookup='item'
+)
+share_item_file_router.register(
+    r'files',
+    SharedItemFileViewSet,
+    basename='shared-item-files'
+)
+
 urlpatterns = [
     path('api/', include(router.urls)),
     path('api/', include(checklist_router.urls)),
     path('api/', include(category_router.urls)),
     path('api/', include(category_file_router.urls)),
     path('api/', include(item_file_router.urls)),
+
+    path('api/', include(share_router.urls)),
+    path('api/', include(share_cat_router.urls)),
+    path('api/', include(share_cat_file_router.urls)),
+    path('api/', include(share_item_router.urls)),
+    path('api/', include(share_item_file_router.urls)),
 ]

@@ -32,4 +32,5 @@ class ChecklistSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Checklist
-        fields = ['id', 'title', 'description', 'created_at', 'categories']
+        fields = ['id', 'title', 'description', 'created_at', 'categories', 'owner']
+        read_only_fields = ['owner']
