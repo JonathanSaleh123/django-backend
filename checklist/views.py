@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db import transaction
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 class ChecklistViewSet(viewsets.ModelViewSet):
     # queryset = Checklist.objects.all().prefetch_related('categories__items')
 
@@ -116,23 +116,88 @@ class ItemViewSet(viewsets.ModelViewSet):
 
 
 class CategoryFileViewSet(viewsets.ModelViewSet):
-    queryset = CategoryFile.objects.all()
     serializer_class = CategoryFileSerializer
     parser_classes = [MultiPartParser, FormParser]
 
+    def get_permissions(self):
+        if 'token_token' in self.kwargs:
+            return [AllowAny()]  # Allow upload for shared links
+        return super().get_permissions()
+    def get_queryset(self):
+        category_id = self.kwargs['category_pk']
+        token = self.kwargs.get('token_token')  # nested router will give 'token_token'
+
+        if token:
+            share_link = get_object_or_404(ShareLink, token=token)
+            return CategoryFile.objects.filter(category__id=category_id, category__checklist=share_link.checklist)
+        return CategoryFile.objects.filter(category__id=category_id, category__checklist__owner=self.request.user)
+
     def perform_create(self, serializer):
-        category = get_object_or_404(Category, pk=self.kwargs['category_pk'])
+        category_id = self.kwargs['category_pk']
+        token = self.kwargs.get('token_token')
+
+        if token:
+            share_link = get_object_or_404(ShareLink, token=token)
+            category = get_object_or_404(Category, id=category_id, checklist=share_link.checklist)
+        else:
+            category = get_object_or_404(Category, id=category_id, checklist__owner=self.request.user)
+
         serializer.save(category=category)
 
+
 class ItemFileViewSet(viewsets.ModelViewSet):
-    queryset = ItemFile.objects.all()
     serializer_class = ItemFileSerializer
     parser_classes = [MultiPartParser, FormParser]
 
-    def perform_create(self, serializer):
-        item = get_object_or_404(Item, pk=self.kwargs['item_pk'])
-        serializer.save(item=item)
+    def get_permissions(self):
+        if 'token_token' in self.kwargs:
+            return [AllowAny()]  # Allow upload for shared links
+        return super().get_permissions()
+    def get_queryset(self):
+        category_id = self.kwargs['category_pk']
+        item_id = self.kwargs['item_pk']
+        token = self.kwargs.get('token_token')
 
+        if token:
+            # Shared access
+            share_link = get_object_or_404(ShareLink, token=token)
+            return ItemFile.objects.filter(
+                item__id=item_id,
+                item__category__id=category_id,
+                item__category__checklist=share_link.checklist
+            )
+        else:
+            # Authenticated owner access
+            return ItemFile.objects.filter(
+                item__id=item_id,
+                item__category__id=category_id,
+                item__category__checklist__owner=self.request.user
+            )
+
+    def perform_create(self, serializer):
+        category_id = self.kwargs['category_pk']
+        item_id = self.kwargs['item_pk']
+        token = self.kwargs.get('token_token')
+
+        if token:
+            # Shared upload
+            share_link = get_object_or_404(ShareLink, token=token)
+            item = get_object_or_404(
+                Item,
+                id=item_id,
+                category__id=category_id,
+                category__checklist=share_link.checklist
+            )
+        else:
+            # Owner upload
+            item = get_object_or_404(
+                Item,
+                id=item_id,
+                category__id=category_id,
+                category__checklist__owner=self.request.user
+            )
+
+        serializer.save(item=item)
 
 
 class SharedChecklistViewSet(viewsets.ReadOnlyModelViewSet):
@@ -150,28 +215,3 @@ class SharedChecklistViewSet(viewsets.ReadOnlyModelViewSet):
     def get_object(self):
         return get_object_or_404(self.get_queryset())
     
-class SharedCategoryFileViewSet(CategoryFileViewSet):
-    permission_classes = [AllowAny]
-
-    def perform_create(self, serializer):
-        token       = self.kwargs['token']
-        category_id = self.kwargs['category']     # ← use 'category'
-        category = get_object_or_404(
-            Category,
-            id=category_id,
-            checklist__share_links__token=token
-        )
-        serializer.save(category=category)
-
-class SharedItemFileViewSet(ItemFileViewSet):
-    permission_classes = [AllowAny]
-
-    def perform_create(self, serializer):
-        token    = self.kwargs['token']
-        item_id  = self.kwargs['item']         
-        item = get_object_or_404(
-            Item,
-            id=item_id,
-            category__checklist__share_links__token=token
-        )
-        serializer.save(item=item)

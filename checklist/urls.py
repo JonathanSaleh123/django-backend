@@ -5,7 +5,7 @@ from rest_framework_nested import routers as nested_routers
 from rest_framework.routers      import SimpleRouter
 from .views import (
     ChecklistViewSet, CategoryViewSet, ItemViewSet,
-    CategoryFileViewSet, ItemFileViewSet, SharedChecklistViewSet, SharedCategoryFileViewSet, SharedItemFileViewSet
+    CategoryFileViewSet, ItemFileViewSet, SharedChecklistViewSet
 )
 
 # 1) top‑level checklist router
@@ -38,41 +38,30 @@ share_router.register(r'share', SharedChecklistViewSet, basename='shared-checkli
 share_cat_router = nested_routers.NestedSimpleRouter(
     share_router, r'share', lookup='token'
 )
-
 share_cat_router.register(
     r'categories',
     CategoryViewSet,                   # or a read‑only variant listing them
     basename='shared-categories'
 )
-
-# 3) /api/share/{token}/categories/{category_pk}/files/
 share_cat_file_router = nested_routers.NestedSimpleRouter(
     share_cat_router, r'categories', lookup='category'
 )
-share_cat_file_router.register(
-    r'files',
-    SharedCategoryFileViewSet,
-    basename='shared-category-files'
-)
+share_cat_file_router.register(r'files', CategoryFileViewSet, basename='shared-category-files')
 
-# 4) /api/share/{token}/categories/{category_pk}/items/{item_pk}/files/
+
 share_item_router = nested_routers.NestedSimpleRouter(
     share_cat_router, r'categories', lookup='category'
 )
 share_item_router.register(
     r'items',
-    ItemViewSet,                       # or a read‑only one
+    ItemViewSet,                       # or a read‑only variant listing them
     basename='shared-items'
 )
-
 share_item_file_router = nested_routers.NestedSimpleRouter(
     share_item_router, r'items', lookup='item'
 )
-share_item_file_router.register(
-    r'files',
-    SharedItemFileViewSet,
-    basename='shared-item-files'
-)
+share_item_file_router.register(r'files', ItemFileViewSet, basename='shared-item-files')
+
 
 urlpatterns = [
     path('api/', include(router.urls)),
@@ -84,6 +73,7 @@ urlpatterns = [
     path('api/', include(share_router.urls)),
     path('api/', include(share_cat_router.urls)),
     path('api/', include(share_cat_file_router.urls)),
-    path('api/', include(share_item_router.urls)),
     path('api/', include(share_item_file_router.urls)),
+
+
 ]
